@@ -1,0 +1,100 @@
+---
+title: "R Notebook"
+---
+
+
+```{r}
+# Load the packages
+library(raster)
+library(sp)
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(ggplot2)
+```
+
+
+# Get shape file for regions
+
+```{r}
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(lwgeom)
+
+# Load shapefile 
+shapefile_path <- "../../data/raw/georef-spain-comunidad-autonoma/georef-spain-comunidad-autonoma-millesime.shp"
+shape_data <- st_read(shapefile_path)
+
+# Ensure geometries are valid
+shape_data <- st_make_valid(shape_data)
+
+# Get relevant areas
+catalonia <- shape_data %>%
+  filter(acom_iso316 == "CT") %>%
+  select(geometry)
+
+aragon <- shape_data %>%
+  filter(acom_iso316 == "AR") %>%
+  select(geometry)
+
+# Ensure geometries are valid and simplify them
+catalonia <- st_make_valid(catalonia)
+aragon <- st_make_valid(aragon)
+
+catalonia <- st_simplify(catalonia, dTolerance = 0.01)
+aragon <- st_simplify(aragon, dTolerance = 0.01)
+
+# Identify the border
+catalonia_buffer <- st_buffer(catalonia, dist = 2000)
+aragon_buffer <- st_buffer(aragon, dist = 2000)
+border_area <- st_intersection(catalonia_buffer, aragon_buffer)
+border_area <- st_make_valid(border_area)
+
+# Intersect the border area with Catalonia to confine it within Catalonia
+near_border_area_cat <- st_intersection(border_area, catalonia)
+near_border_area_cat <- st_make_valid(near_border_area_cat)
+
+near_border_area_ar <- st_intersection(border_area, aragon)
+near_border_area_ar <- st_make_valid(near_border_area_ar)
+
+# Ensure the resulting intersections are valid and simplified
+near_border_area_cat <- st_make_valid(near_border_area_cat)
+near_border_area_cat <- st_simplify(near_border_area_cat, dTolerance = 0.01)
+
+near_border_area_ar <- st_make_valid(near_border_area_ar)
+near_border_area_ar <- st_simplify(near_border_area_ar, dTolerance = 0.01)
+
+# Write shapefiles
+st_write(near_border_area_cat, "../../data/raw/region_shapefiles/cat/cat.shp", delete_layer = TRUE)
+st_write(near_border_area_ar, "../../data/raw/region_shapefiles/ar/ar.shp", delete_layer = TRUE)
+
+# Adding identifiers for plotting
+catalonia$region <- 'Catalonia'
+aragon$region <- 'Aragon'
+near_border_area_cat$region <- 'Near Border Catalonia'
+near_border_area_ar$region <- 'Near Border Aragon'
+
+# Combine into one data frame for plotting
+all_regions <- rbind(catalonia, aragon, near_border_area_cat, near_border_area_ar)
+
+# Ensure all combined geometries are valid
+all_regions <- st_make_valid(all_regions)
+
+# Plot all regions
+ggplot(data = all_regions) +
+  geom_sf(aes(fill = region), color = "white", size = 0.25) +
+  scale_fill_manual(values = c("Catalonia" = "skyblue", "Aragon" = "lightgreen",
+                               "Near Border Catalonia" = "red", "Near Border Aragon" = "orange")) +
+  labs(title = "Catalonia and Aragon with Near Border Areas",
+       fill = "Region") +
+  theme_minimal()
+
+```
+
+
+
+
+
+
+
