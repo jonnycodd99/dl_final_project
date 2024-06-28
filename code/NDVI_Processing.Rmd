@@ -1,0 +1,236 @@
+---
+title: "ndvi_processing"
+output: html_document
+date: "2024-06-27"
+---
+
+## Load Packages
+```{r}
+rm(list = ls())
+# Load the necessary libraries
+library(raster)
+library(sf)
+library(ggplot2)
+library(exactextractr)
+library(dplyr)
+library(tidyr)
+library(fixest)
+```
+
+## Load Spain Shapefile
+```{r}
+spain_shpfile <- st_read("../data/raw/georef-spain-comunidad-autonoma/georef-spain-comunidad-autonoma-millesime.shp")
+
+# Subset the regions of interest: Catalunya and Aragon
+CT <- spain_shpfile %>% 
+  filter(acom_iso316 == "CT")
+
+AR <- spain_shpfile %>% 
+  filter(acom_iso316 == "AR")
+
+# Calculate shared border between both regions (computing the intersection between both boundaries)
+shared_border <- st_intersection(st_boundary(CT), st_boundary(AR))
+
+# Plot the shared border
+ggplot() + 
+  geom_sf(data = CT, fill = "white", color = "black", alpha = 0.5) +
+  geom_sf(data = AR, fill = "white", color = "black", alpha = 0.5) +
+  geom_sf(data = shared_border, color = "red", size = 2)
+```
+
+
+## Create Border Segments for the border Catalunya - Aragon
+
+```{r}
+# Create a buffer zone around the shared border between Catalunya and Aragon within a distance of 2000 meters
+border_buffer <- st_buffer(shared_border, dist = 5000)
+```
+
+
+```{r, echo = FALSE}
+# Visualization
+ggplot() +
+  geom_sf(data = CT, fill = "white", color = "black", alpha = 0.5) +
+  geom_sf(data = AR, fill = "white", color = "black", alpha = 0.5) +
+  geom_sf(data = border_buffer, color = 'red', fill = "red", alpha = 0.5)
+```
+
+
+```{r}
+# Define the number of horizontal strips the buffer should be divided into
+n_strips <- 50
+
+# Calculate the range of latitudes and determine the step for each strip (which determines the height of each strip)
+lat_range <- st_bbox(border_buffer)[c("ymin", "ymax")]
+lat_step <- diff(lat_range) / n_strips
+
+# Function to create a horizontal strip mask (Note that the first and last mask vertex is the same and the projection added to the mask is the same as the buffer's border)
+create_horizontal_strip <- function(lat, step, bbox) {
+  ymin <- lat
+  ymax <- lat + step
+  st_polygon(list(rbind(c(bbox["xmin"], ymin),
+                        c(bbox["xmax"], ymin),
+                        c(bbox["xmax"], ymax),
+                        c(bbox["xmin"], ymax),
+                        c(bbox["xmin"], ymin)))) %>%
+    st_sfc(crs = st_crs(border_buffer))}
+
+# Create all horizontal strip polygons using the previous function
+horizontal_strips <- lapply(seq(lat_range["ymin"], lat_range["ymax"] - lat_step, by = lat_step),
+                      create_horizontal_strip, step = lat_step, bbox = st_bbox(border_buffer))
+
+# Intersect the strips with the original polygon to get all the final strips
+smaller_polygons_list <- lapply(horizontal_strips, function(strip) {
+  st_intersection(border_buffer, strip)})
+
+# Combine all the small polygons into one simple feature and remove empty geometries
+smaller_polygons <- do.call(rbind, smaller_polygons_list) %>%
+                        filter(!st_is_empty(.)) %>% 
+                        select() %>% 
+                        mutate(segment_id = 1:length(smaller_polygons_list))
+
+```
+
+```{r}
+# Create two new simple feature objects including the segments included in the region of Catalunya and Aragon, respectively
+segments_CT = st_intersection(CT, smaller_polygons)
+segments_AR = st_intersection(AR, smaller_polygons)
+```
+
+```{r}
+# Plot the segments
+ggplot() + 
+  geom_sf(data = CT, fill = "red", color = "black", alpha = 0.2) +
+  geom_sf_text(data = CT, aes(label = acom_name), size = 4) +
+  geom_sf(data = AR, fill = "blue", color = "black", alpha = 0.2) +
+  geom_sf_text(data = AR, aes(label = acom_name), size = 4) +
+  geom_sf(data = segments_CT, aes(fill = "Treatment"), color = 'black') + 
+  geom_sf(data = segments_AR, aes(fill = "Control"), color = 'black') + 
+  labs(title = "Border Segments in Aragon and Catalunya") + 
+  scale_fill_manual(name = "Group",
+                    values = c("Treatment" = "red", "Control" = "blue")) +
+  theme_void() + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+## Read NDVI Data
+```{r}
+ndvi_cat <- st_read("../data/processed_ndvi/cat/ndvi.shp")
+ndvi_ar <- st_read("../data/processed_ndvi/ar/ndvi.shp")
+
+# Add segment_id to ndvi_cat based on the smaller_polygons
+ndvi_cat <- st_join(ndvi_cat, smaller_polygons[, "segment_id"]) 
+# Add segment_id to ndvi_ar based on the smaller_polygons
+ndvi_ar <- st_join(ndvi_ar, smaller_polygons[, "segment_id"])
+
+
+# Order ndvi_cat and ndvi_ar by segment_id and polygon_id
+
+ndvi_cat <- ndvi_cat %>%
+  arrange(segment_id, polygon) %>% 
+  select(segment_id, polygon, everything()) %>% 
+  rename(mask_id = polygon)
+  
+ndvi_ar <- ndvi_ar %>% 
+  arrange(segment_id, polygon) %>% 
+  select(segment_id, polygon, everything()) %>% 
+  rename(mask_id = polygon)
+
+```
+
+
+```{r}
+# Plot the segments
+ggplot() + 
+  geom_sf(data = CT, fill = "red", color = "black", alpha = 0.2) +
+  geom_sf_text(data = CT, aes(label = acom_name), size = 4) +
+  geom_sf(data = AR, fill = "blue", color = "black", alpha = 0.2) +
+  geom_sf_text(data = AR, aes(label = acom_name), size = 4) +
+  geom_sf(data = segments_CT, aes(fill = "Treatment"), color = 'black', alpha = 0.2) + 
+  geom_sf(data = segments_AR, aes(fill = "Control"), color = 'black', alpha = 0.2) + 
+  geom_sf(data = ndvi_cat, aes(color = ndvi202309), size = 0.2) +
+  geom_sf(data = ndvi_ar, aes(color = ndvi202309), size = 0.2) +
+  labs(title = "NDVI around the Border of Aragon and Catalunya") + 
+  scale_fill_manual(name = "Group",
+                    values = c("Treatment" = "red", "Control" = "blue")) +
+  scale_color_viridis_c(name = "Average NDVI", na.value = "white") +
+  theme_void() + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+# Reshape ndvi_cat to long format
+ndvi_cat_long <- ndvi_cat %>%
+  pivot_longer(
+    cols = starts_with("ndvi"),
+    names_to = "date",
+    names_prefix = "ndvi",
+    values_to = "average_ndvi"
+  ) %>%
+  mutate(date = as.Date(paste0(date, "01"), format = "%Y%m%d"), 
+         post = ifelse(date >= "2024-02-01", 1, 0),
+         treat = 1,)
+
+# Reshape ndvi_ar to long format
+ndvi_ar_long <- ndvi_ar %>%
+  pivot_longer(
+    cols = starts_with("ndvi"),
+    names_to = "date",
+    names_prefix = "ndvi",
+    values_to = "average_ndvi"
+  ) %>%
+  mutate(date = as.Date(paste0(date, "01"), format = "%Y%m%d"), 
+         post = ifelse(date >= "2024-02-01", 1, 0),
+         treat = 0)
+
+# Verify the resulting long format data frames
+print(head(ndvi_cat_long))
+print(head(ndvi_ar_long))
+
+ndvi <- rbind(ndvi_cat_long, ndvi_ar_long)
+```
+
+## Inspect Segments
+```{r}
+# Plot one segment with its centroid to verify
+segment_to_plot <- 8  
+segment_cat <- smaller_polygons %>% filter(segment_id == segment_to_plot)
+centroids_cat <- ndvi_cat %>% filter(segment_id == segment_to_plot)
+
+ggplot() + 
+  geom_sf(data = segment_cat, fill = "red", color = "black", alpha = 0.2) +
+  geom_sf(data = centroids_cat, aes(color = ndvi202309), size = 3) +
+  scale_color_viridis_c(name = "Average NDVI", na.value = "white") +
+  labs(title = paste("Segment", segment_to_plot, "with Centroids")) +
+  theme_void() + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+table(ndvi_cat$segment_id)
+table(ndvi_ar$segment_id)
+
+
+```
+
+
+## Regression
+
+We cluster standard errors at the mask level to allow the errors to be correlated over time for each mask.
+
+```{r}
+model1 <- feols(average_ndvi ~ treat + treat:post | segment_id + date, data = ndvi, cluster = "mask_id")
+summary(model1)
+etable(model1, tex = TRUE)
+```
+
+```{r}
+model2 <- feols(average_ndvi ~ treat + i(date, treat, ref = "@2024-01-01") + date | segment_id, data = ndvi, cluster = "mask_id")
+summary(model2)
+etable(model2, tex = TRUE)
+```
+
+```{r}
+iplot(model2, 
+      pt.join = T,
+      ref.line.par = list(lty = 1, lwd = 3, col = "darkgreen"),
+      main = "Effect of the Drought Policies on the NDVI Index",
+      xlab = "Time")
+```
+
