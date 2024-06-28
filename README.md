@@ -1,6 +1,6 @@
 # The Effect of Drought Policies on Vegetational Health Through Image Segmentation
 by Jonny Bramwell Codd & Jonas Wallstein  
-*Barcelona School of Economics  *
+*Barcelona School of Economics*  
 *Final Project for the course Applications of Deep Learning*
 
 This project evaluates the impact of the 2024 Catalonian
