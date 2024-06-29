@@ -3,6 +3,8 @@ by Jonny Bramwell Codd & Jonas Wallstein
 *Barcelona School of Economics*  
 *Final Project for the course Applications of Deep Learning*
 
+![Poster](final_project_codd_wallstein.pdf)
+
 This project evaluates the impact of the 2024 Catalonian
 drought policies on vegetative health. We exploit that Catalonia’s neighbouring region, Aragon, did not implemented a
 drought policy and focus on areas close to their shared border.
@@ -21,7 +23,6 @@ effects of the 2024 drought policies on vegetation in Catalonia. With our projec
 for future drought management strategies in Mediterranean
 climates.
 
-![Poster](final_project_codd_wallstein.pdf)
 
-[Application_of_dl-7.pdf](https://github.com/user-attachments/files/16039363/Application_of_dl-7.pdf)
+
 
