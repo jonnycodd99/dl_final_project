@@ -20,3 +20,5 @@ vegetation. This finding highlights the adverse short term
 effects of the 2024 drought policies on vegetation in Catalonia. With our project we hope to provide valuable insights
 for future drought management strategies in Mediterranean
 climates.
+
+![Poster](final_project_codd_wallstein.pdf)
