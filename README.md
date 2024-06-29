@@ -22,3 +22,6 @@ for future drought management strategies in Mediterranean
 climates.
 
 ![Poster](final_project_codd_wallstein.pdf)
+
+[Application_of_dl-7.pdf](https://github.com/user-attachments/files/16039363/Application_of_dl-7.pdf)
+
