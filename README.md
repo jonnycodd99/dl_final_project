@@ -14,8 +14,7 @@ DeepGlobe Land Cover Classification Dataset to identify land
 cover classes.
 
 The empirical framework leveraged a difference-in-difference
-approach with border segment fixed effects. Our results indi-
-cate a significant decrease in vegetative health by 0.02 on the
+approach with border segment fixed effects. Our results indicate a significant decrease in vegetative health by 0.02 on the
 NDVI scale due to the drought policies, supporting the hypothesis that severe irrigation limits would negatively impact
 vegetation. This finding highlights the adverse short term
 effects of the 2024 drought policies on vegetation in Catalonia. With our project we hope to provide valuable insights
